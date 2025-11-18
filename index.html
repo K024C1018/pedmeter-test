@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>歩数計テスト</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; }
+    button { font-size: 18px; padding: 8px 16px; margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <h1>歩数計テスト</h1>
+  <p>状態: <span id="status">idle</span></p>
+  <p>歩数: <span id="steps">0</span></p>
+  <button id="start">計測開始</button>
+  <button id="stop">停止</button>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    const stepsEl  = document.getElementById('steps');
+    const startBtn = document.getElementById('start');
+    const stopBtn  = document.getElementById('stop');
+
+    let stepCount = 0;
+    let lastAcc = { x: null, y: null, z: null };
+
+    function handleMotion(e) {
+      const acc = e.accelerationIncludingGravity;
+      if (!acc) return;
+
+      if (lastAcc.x === null) {
+        lastAcc = { x: acc.x, y: acc.y, z: acc.z };
+        return;
+      }
+
+      const diff =
+        Math.abs(acc.x - lastAcc.x) +
+        Math.abs(acc.y - lastAcc.y) +
+        Math.abs(acc.z - lastAcc.z);
+
+      // とりあえずテスト用のざっくり歩数判定
+      if (diff > 3) {
+        stepCount++;
+        stepsEl.textContent = stepCount;
+      }
+
+      lastAcc = { x: acc.x, y: acc.y, z: acc.z };
+    }
+
+    async function start() {
+      statusEl.textContent = 'permission...';
+
+      try {
+        // iOS 13+ Safari 用：ユーザー操作の中で許可をリクエスト
+        if (
+          window.DeviceMotionEvent &&
+          typeof DeviceMotionEvent.requestPermission === 'function'
+        ) {
+          const res = await DeviceMotionEvent.requestPermission();
+          if (res !== 'granted') {
+            statusEl.textContent = 'permission denied';
+            return;
+          }
+        }
+        // 許可が取れた / そもそも許可不要な環境
+        window.addEventListener('devicemotion', handleMotion);
+        statusEl.textContent = 'running';
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent = 'error / denied';
+      }
+    }
+
+    function stop() {
+      window.removeEventListener('devicemotion', handleMotion);
+      statusEl.textContent = 'stopped';
+    }
+
+    startBtn.addEventListener('click', start);
+    stopBtn.addEventListener('click', stop);
+  </script>
+</body>
+</html>
