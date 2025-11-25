@@ -2,28 +2,61 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <title>歩数計テスト</title>
+  <title>歩数計シンプル版</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+
   <style>
-    body { font-family: system-ui, sans-serif; padding: 16px; }
-    button { font-size: 18px; padding: 8px 16px; margin-right: 8px; }
+    body {
+      font-family: system-ui, sans-serif;
+      padding: 24px;
+      max-width: 500px;
+      margin: auto;
+      line-height: 1.6;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .steps {
+      font-size: 40px;
+      text-align: center;
+      margin: 20px 0;
+      font-weight: bold;
+    }
+    button {
+      width: 100%;
+      margin: 10px 0;
+      padding: 12px;
+      font-size: 18px;
+    }
+    .status {
+      text-align: center;
+      color: #666;
+      margin-top: 10px;
+    }
   </style>
 </head>
+
 <body>
-  <h1>歩数計テスト</h1>
-  <p>状態: <span id="status">idle</span></p>
-  <p>歩数: <span id="steps">0</span></p>
-  <button id="start">計測開始</button>
-  <button id="stop">停止</button>
+  <h1>歩数計（シンプル）</h1>
+
+  <div class="steps"><span id="steps">0</span> 歩</div>
+
+  <button id="startBtn">計測開始</button>
+  <button id="stopBtn">停止</button>
+
+  <p class="status" id="statusText">停止中</p>
 
   <script>
-    const statusEl = document.getElementById('status');
-    const stepsEl  = document.getElementById('steps');
-    const startBtn = document.getElementById('start');
-    const stopBtn  = document.getElementById('stop');
+    const stepsEl = document.getElementById("steps");
+    const statusText = document.getElementById("statusText");
+    const startBtn = document.getElementById("startBtn");
+    const stopBtn = document.getElementById("stopBtn");
 
     let stepCount = 0;
+    let running = false;
     let lastAcc = { x: null, y: null, z: null };
+    let lastStepTime = 0;
 
     function handleMotion(e) {
       const acc = e.accelerationIncludingGravity;
@@ -39,46 +72,58 @@
         Math.abs(acc.y - lastAcc.y) +
         Math.abs(acc.z - lastAcc.z);
 
-      // とりあえずテスト用のざっくり歩数判定
-      if (diff > 3) {
+      const now = Date.now();
+
+      // 0.25秒以下の高速連続カウントを無視
+      const enoughInterval = now - lastStepTime > 250;
+
+      // 軽すぎる揺れを無視
+      const enoughShake = diff > 4.5;
+
+      if (enoughInterval && enoughShake) {
         stepCount++;
         stepsEl.textContent = stepCount;
+        lastStepTime = now;
       }
 
       lastAcc = { x: acc.x, y: acc.y, z: acc.z };
     }
 
     async function start() {
-      statusEl.textContent = 'permission...';
+      if (running) return;
 
+      statusText.textContent = "センサー許可を確認中…";
+
+      // iOSは permission が必要
       try {
-        // iOS 13+ Safari 用：ユーザー操作の中で許可をリクエスト
-        if (
-          window.DeviceMotionEvent &&
-          typeof DeviceMotionEvent.requestPermission === 'function'
-        ) {
+        if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === "function") {
           const res = await DeviceMotionEvent.requestPermission();
-          if (res !== 'granted') {
-            statusEl.textContent = 'permission denied';
+          if (res !== "granted") {
+            statusText.textContent = "センサーが許可されていません";
             return;
           }
         }
-        // 許可が取れた / そもそも許可不要な環境
-        window.addEventListener('devicemotion', handleMotion);
-        statusEl.textContent = 'running';
       } catch (err) {
         console.error(err);
-        statusEl.textContent = 'error / denied';
+        statusText.textContent = "エラーが発生しました";
+        return;
       }
+
+      running = true;
+      window.addEventListener("devicemotion", handleMotion);
+      statusText.textContent = "計測中…";
     }
 
     function stop() {
-      window.removeEventListener('devicemotion', handleMotion);
-      statusEl.textContent = 'stopped';
+      if (!running) return;
+      running = false;
+      window.removeEventListener("devicemotion", handleMotion);
+      statusText.textContent = "停止中";
     }
 
-    startBtn.addEventListener('click', start);
-    stopBtn.addEventListener('click', stop);
+    startBtn.addEventListener("click", start);
+    stopBtn.addEventListener("click", stop);
   </script>
 </body>
 </html>
+
